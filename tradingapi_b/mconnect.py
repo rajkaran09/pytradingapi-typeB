@@ -45,8 +45,8 @@ class MConnectB:
         self.request_session = requests.Session()
 
         # If PRIVATE_IP provided → mount adapter so all requests use it
-        if self.private_id:
-            adapter = SourceIPAdapter(self.private_id)
+        if self.private_ip:
+            adapter = SourceIPAdapter(self.private_ip)
             self.request_session.mount("http://", adapter)
             self.request_session.mount("https://", adapter)
         
