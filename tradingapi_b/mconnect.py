@@ -1,6 +1,7 @@
+from requests.adapters import HTTPAdapter
 import logging
 import requests
-import sys,traceback
+import sys, traceback
 import tradingapi_b.exceptions as ex
 from tradingapi_b import __config__
 from urllib.parse import urljoin
@@ -9,10 +10,22 @@ from urllib.parse import urljoin
 default_log = logging.getLogger("mconnect.log")
 default_log.addHandler(logging.FileHandler("mconnect.log", mode='a'))
 
+# --- Custom adapter for binding to a specific IP ---
+class SourceIPAdapter(HTTPAdapter):
+    def __init__(self, source_ip=None, *args, **kwargs):
+        self.source_ip = source_ip
+        super().__init__(*args, **kwargs)
+
+    def init_poolmanager(self, *args, **kwargs):
+        if self.source_ip:
+            kwargs["source_address"] = (self.source_ip, 0)
+        return super().init_poolmanager(*args, **kwargs)
+
+
 class MConnectB:
     _default_timeout = 7
 
-    def __init__(self,api_key=None,access_Token=None,pool=None,timeout=None,debug=True,logger=default_log,disable_ssl=True): 
+    def __init__(self,api_key=None,access_Token=None,pool=None,timeout=None,debug=True,logger=default_log,disable_ssl=True, private_ip: str=None): 
         self.api_key=api_key
         self.access_token=access_Token
         self.session_expiry_hook = None
@@ -20,6 +33,7 @@ class MConnectB:
         self.disable_ssl = disable_ssl
         self.debug=debug
         self.logger=logger
+        self.private_ip=private_ip
 
         #Read config.json and assign
         
@@ -29,6 +43,13 @@ class MConnectB:
         # Create requests session by default
         # Same session to be used by pool connections
         self.request_session = requests.Session()
+
+        # If PRIVATE_IP provided → mount adapter so all requests use it
+        if self.private_id:
+            adapter = SourceIPAdapter(self.private_id)
+            self.request_session.mount("http://", adapter)
+            self.request_session.mount("https://", adapter)
+        
         if pool:
             request_adapter = requests.adapters.HTTPAdapter(**pool)
             self.request_session.mount("https://", request_adapter)
