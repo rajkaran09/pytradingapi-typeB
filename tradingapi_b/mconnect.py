@@ -25,7 +25,7 @@ class SourceIPAdapter(HTTPAdapter):
 class MConnectB:
     _default_timeout = 7
 
-    def __init__(self,api_key=None,access_Token=None,pool=None,timeout=None,debug=True,logger=default_log,disable_ssl=True, private_ip: str=None): 
+    def __init__(self,api_key=None,access_Token=None,pool=None,timeout=None,debug=True,logger=default_log,disable_ssl=True, static_ip: str=None): 
         self.api_key=api_key
         self.access_token=access_Token
         self.session_expiry_hook = None
@@ -33,7 +33,7 @@ class MConnectB:
         self.disable_ssl = disable_ssl
         self.debug=debug
         self.logger=logger
-        self.private_ip=private_ip
+        self.static_ip=static_ip
 
         #Read config.json and assign
         
@@ -45,8 +45,8 @@ class MConnectB:
         self.request_session = requests.Session()
 
         # If PRIVATE_IP provided → mount adapter so all requests use it
-        if self.private_ip:
-            adapter = SourceIPAdapter(self.private_ip)
+        if self.static_ip:
+            adapter = SourceIPAdapter(self.static_ip)
             self.request_session.mount("http://", adapter)
             self.request_session.mount("https://", adapter)
         
