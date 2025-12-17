@@ -606,8 +606,6 @@ class MConnectB:
         if method == "GET" or (method == "DELETE" and not is_json):
             query_params = params
 
-        resp = self.request_session.get("https://ifconfig.me") # Returns your public IP (but sourced from private IP)
-        print("Outgoing IP seen by server:", resp.text.strip())
 
         try:
             response_data = self.request_session.request(method,
