@@ -1,4 +1,3 @@
-from requests.adapters import HTTPAdapter
 import logging
 import requests
 import sys, traceback
@@ -10,22 +9,70 @@ from urllib.parse import urljoin
 default_log = logging.getLogger("mconnect.log")
 default_log.addHandler(logging.FileHandler("mconnect.log", mode='a'))
 
-# --- Custom adapter for binding to a specific IP ---
-class SourceIPAdapter(HTTPAdapter):
-    def __init__(self, source_ip=None, *args, **kwargs):
-        self.source_ip = source_ip
-        super().__init__(*args, **kwargs)
 
-    def init_poolmanager(self, *args, **kwargs):
-        if self.source_ip:
-            kwargs["source_address"] = (self.source_ip, 0)
-        return super().init_poolmanager(*args, **kwargs)
+def send_via_proxy(
+    method,
+    url,
+    source_private_ip,
+    query_params=None,   # dict for GET params
+    json_body=None,      # for json=
+    data_body=None,      # for data=
+    headers=None,
+    timeout=30,
+    allow_redirects=True,
+    verify_ssl=True,
+    proxy_url=None
+):
+    proxy_url = proxy_url  # or host.internal:5000
+
+    payload = {
+        'method': method.upper(),
+        'url': url,
+        'source_ip': source_private_ip,
+        'headers': headers or {},
+        'params': query_params or {},        # GET query params
+        'json': json_body,                   # if you use json=
+        'data': data_body,                   # if you use data=
+        'timeout': timeout,
+        'allow_redirects': allow_redirects,
+        'verify_ssl': verify_ssl
+    }
+
+    proxy_resp = requests.post(proxy_url, json=payload)
+
+    if proxy_resp.status_code != 200:
+        try:
+            error_detail = proxy_resp.json()
+        except:
+            error_detail = proxy_resp.text
+        raise Exception(f"Proxy failed ({proxy_resp.status_code}): {error_detail}")
+
+    result = proxy_resp.json()
+
+    if 'error' in result:
+        raise Exception(f"Request failed: {result['error']}")
+
+    # Mimic a requests.Response object as much as possible
+    class FakeResponse:
+        def __init__(self, data):
+            self.status_code = data['status_code']
+            self.headers = data['headers']
+            self.text = data['text']
+            self.content = data['content'].encode('utf-8')
+            self._json = data.get('json')
+
+        def json(self):
+            if self._json is None:
+                raise ValueError("Response is not JSON")
+            return self._json
+
+    return FakeResponse(result)
 
 
 class MConnectB:
     _default_timeout = 7
 
-    def __init__(self,api_key=None,access_Token=None,pool=None,timeout=None,debug=True,logger=default_log,disable_ssl=True, static_ip: str=None): 
+    def __init__(self,api_key=None,access_Token=None,pool=None,timeout=None,debug=True,logger=default_log,disable_ssl=True, static_ip: str=None, proxy_url: str = None): 
         self.api_key=api_key
         self.access_token=access_Token
         self.session_expiry_hook = None
@@ -34,6 +81,7 @@ class MConnectB:
         self.debug=debug
         self.logger=logger
         self.static_ip=static_ip
+        self.proxy_url=proxy_url
 
         #Read config.json and assign
         
@@ -44,12 +92,6 @@ class MConnectB:
         # Same session to be used by pool connections
         self.request_session = requests.Session()
 
-        # If PRIVATE_IP provided → mount adapter so all requests use it
-        if self.static_ip:
-            adapter = SourceIPAdapter(self.static_ip)
-            self.request_session.mount("http://", adapter)
-            self.request_session.mount("https://", adapter)
-        
         if pool:
             request_adapter = requests.adapters.HTTPAdapter(**pool)
             self.request_session.mount("https://", request_adapter)
@@ -608,15 +650,26 @@ class MConnectB:
 
 
         try:
-            response_data = self.request_session.request(method,
-                                        url,
-                                        json=params if (method in ["POST", "PUT", "DELETE"] and is_json) else None,
-                                        data=params if (method in ["POST", "PUT", "DELETE"] and not is_json) else None,
-                                        params=query_params,
-                                        headers=headers,
-                                        verify=not self.disable_ssl,
-                                        allow_redirects=True,
-                                        timeout=self.timeout)
+            response_data = send_via_proxy(
+                method=method,
+                url=url,
+                source_private_ip=self.static_ip,
+                query_params=query_params,
+                json_body=params if (method in ["POST", "PUT", "DELETE"] and is_json) else None,
+                data_body=params if (method in ["POST", "PUT", "DELETE"] and not is_json) else None,
+                headers=headers,
+                timeout=30,
+                proxy_url=self.proxy_url
+            )
+            #response_data = self.request_session.request(method,
+            #                            url,
+            #                            json=params if (method in ["POST", "PUT", "DELETE"] and is_json) else None,
+            #                            data=params if (method in ["POST", "PUT", "DELETE"] and not is_json) else None,
+            #                            params=query_params,
+            #                            headers=headers,
+            #                            verify=not self.disable_ssl,
+            #                            allow_redirects=True,
+            #                            timeout=self.timeout)
         except Exception as e:
             raise e
 
