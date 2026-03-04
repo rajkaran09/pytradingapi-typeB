@@ -650,26 +650,28 @@ class MConnectB:
 
 
         try:
-            response_data = send_via_proxy(
-                method=method,
-                url=url,
-                source_private_ip=self.static_ip,
-                query_params=query_params,
-                json_body=params if (method in ["POST", "PUT", "DELETE"] and is_json) else None,
-                data_body=params if (method in ["POST", "PUT", "DELETE"] and not is_json) else None,
-                headers=headers,
-                timeout=30,
-                proxy_url=self.proxy_url
-            )
-            #response_data = self.request_session.request(method,
-            #                            url,
-            #                            json=params if (method in ["POST", "PUT", "DELETE"] and is_json) else None,
-            #                            data=params if (method in ["POST", "PUT", "DELETE"] and not is_json) else None,
-            #                            params=query_params,
-            #                            headers=headers,
-            #                            verify=not self.disable_ssl,
-            #                            allow_redirects=True,
-            #                            timeout=self.timeout)
+            if self.static_ip:
+                response_data = send_via_proxy(
+                    method=method,
+                    url=url,
+                    source_private_ip=self.static_ip,
+                    query_params=query_params,
+                    json_body=params if (method in ["POST", "PUT", "DELETE"] and is_json) else None,
+                    data_body=params if (method in ["POST", "PUT", "DELETE"] and not is_json) else None,
+                    headers=headers,
+                    timeout=30,
+                    proxy_url=self.proxy_url
+                )
+            else:
+                response_data = self.request_session.request(method,
+                                            url,
+                                            json=params if (method in ["POST", "PUT", "DELETE"] and is_json) else None,
+                                            data=params if (method in ["POST", "PUT", "DELETE"] and not is_json) else None,
+                                            params=query_params,
+                                            headers=headers,
+                                            verify=not self.disable_ssl,
+                                            allow_redirects=True,
+                                            timeout=self.timeout)
         except Exception as e:
             raise e
 
